@@ -1,6 +1,6 @@
 {
   "name": "claude-queue",
-  "version": "1.5.2",
+  "version": "1.5.4",
   "description": "Automated GitHub issue solver powered by Claude Code",
   "bin": {
     "claude-queue": "./claude-queue.sh"
