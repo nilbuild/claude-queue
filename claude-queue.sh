@@ -11,6 +11,7 @@
 #   --max-retries N    Max retries per issue (default: 3)
 #   --max-turns N      Max Claude turns per attempt (default: 50)
 #   --label LABEL      Only process issues with this label (can be repeated)
+#   --branch BRANCH    Work on this branch instead of creating a new one
 #   --model MODEL      Claude model to use
 #   -v, --version      Show version
 #   -h, --help         Show this help message
@@ -30,6 +31,7 @@ MAX_TURNS=50
 declare -a ISSUE_FILTERS=()
 ISSUE_IDS=""
 MODEL_FLAG=""
+BRANCH_OVERRIDE=""
 DATE=$(date +%Y-%m-%d)
 TIMESTAMP=$(date +%H%M%S)
 BRANCH="claude-queue/${DATE}"
@@ -66,6 +68,7 @@ show_help() {
     echo "  --max-retries N    Max retries per issue (default: 3)"
     echo "  --max-turns N      Max Claude turns per attempt (default: 50)"
     echo "  --label LABEL      Only process issues with this label (can be repeated)"
+    echo "  --branch BRANCH    Work on this branch instead of creating a new one"
     echo "  --model MODEL      Claude model to use"
     echo "  -v, --version      Show version"
     echo "  -h, --help         Show this help message"
@@ -185,6 +188,24 @@ setup_branch() {
     log "Default branch: ${default_branch}"
 
     git fetch origin "$default_branch" --quiet
+
+    if [ -n "$BRANCH_OVERRIDE" ]; then
+        BRANCH="$BRANCH_OVERRIDE"
+
+        if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+            git checkout "$BRANCH" --quiet
+            log_success "Using existing branch: ${BRANCH}"
+        elif git ls-remote --exit-code --heads origin "$BRANCH" &>/dev/null; then
+            git fetch origin "$BRANCH" --quiet
+            git checkout -b "$BRANCH" "origin/${BRANCH}" --quiet
+            log_success "Checked out branch from origin: ${BRANCH}"
+        else
+            git checkout -b "$BRANCH" "origin/${default_branch}" --quiet
+            log_success "Created branch: ${BRANCH}"
+        fi
+
+        return
+    fi
 
     if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
         log_warn "Branch ${BRANCH} already exists, adding timestamp suffix"
@@ -553,6 +574,15 @@ create_pr() {
 
     git push origin "$BRANCH" --quiet
     log_success "Pushed branch to origin"
+
+    local existing_pr
+    existing_pr=$(gh pr list --head "$BRANCH" --state open --json url -q '.[0].url' 2>/dev/null || echo "")
+
+    if [ -n "$existing_pr" ]; then
+        gh pr comment "$existing_pr" --body-file "$pr_body" 2>/dev/null || true
+        log_success "Updated existing pull request: ${existing_pr}"
+        return
+    fi
 
     local pr_url
     pr_url=$(gh pr create \
@@ -1007,6 +1037,7 @@ case "$SUBCOMMAND" in
                 --max-retries) MAX_RETRIES="$2"; shift 2 ;;
                 --max-turns)   MAX_TURNS="$2";   shift 2 ;;
                 --label)       ISSUE_FILTERS+=("$2"); shift 2 ;;
+                --branch)      BRANCH_OVERRIDE="$2"; shift 2 ;;
                 --model)       MODEL_FLAG="--model $2"; shift 2 ;;
                 -v|--version)  echo "claude-queue v${VERSION}"; exit 0 ;;
                 -h|--help)     show_help; exit 0 ;;

@@ -40,7 +40,10 @@ claude-queue
 | `--max-retries N` | `3` | Max retry attempts per issue before marking it failed |
 | `--max-turns N` | `50` | Max Claude Code turns per attempt |
 | `--label LABEL` | all issues | Only process issues with this label (can be repeated) |
+| `--branch BRANCH` | new daily branch | Work on this branch instead of creating a new one per run |
 | `--model MODEL` | CLI default | Claude model to use (e.g. `claude-sonnet-4-5-20250929`) |
+
+By default each run creates a fresh `claude-queue/<date>` branch. Pass `--branch` to commit onto an existing branch instead — it's checked out if it exists locally or on the remote, otherwise created from the default branch. If that branch already has an open PR, the run updates it instead of opening a new one.
 
 ```bash
 # Solve all open issues
@@ -60,6 +63,9 @@ claude-queue --label bug
 
 # Filter by multiple labels
 claude-queue --label bug --label urgent
+
+# Commit onto an existing branch instead of a new one
+claude-queue --branch my-feature-branch
 
 # Use a specific model with more retries
 claude-queue --max-retries 5 --model claude-sonnet-4-5-20250929
